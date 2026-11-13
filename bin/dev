@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# dev — open a project in tmux with a code + agent layout.
+#
+#   dev               current directory
+#   dev <dir>         that directory
+#   dev --pick        fuzzy-pick a project (also: tmux prefix + f)
+#
+# Layout of a new session (named after the folder):
+#   window 1 "code" : nvim (left, 60%) | agent (right, 40%)
+#   window 2 "shell": plain shell
+# Agent defaults to `claude`; override with DEV_AGENT=codex|opencode|gemini ...
+set -euo pipefail
+
+AGENT="${DEV_AGENT:-claude}"
+PROJECT_ROOTS=(
+	"$HOME/projects" "$HOME/Projects" "$HOME/GolandProjects" "$HOME/RustroverProjects"
+	"$HOME/PycharmProjects" "$HOME/AndroidStudioProjects" "$HOME/StudioProjects"
+	"$HOME/RiderProjects" "$HOME/go/src"
+)
+
+if [[ "${1:-}" == "--pick" ]]; then
+	dir=$(
+		{
+			for r in "${PROJECT_ROOTS[@]}"; do
+				[[ -d "$r" ]] && find "$r" -mindepth 1 -maxdepth 1 -type d -not -name '.*'
+			done
+			echo "$HOME/.config/nvim"
+			echo "$HOME/.config/tmux"
+		} | sed "s|^$HOME|~|" | fzf --prompt 'project> ' --height 100% --reverse
+	) || exit 0
+	dir="${dir/#\~/$HOME}"
+else
+	dir="${1:-$PWD}"
+fi
+
+dir=$(realpath "$dir")
+name=$(basename "$dir" | tr '.: ' '___')
+
+if ! tmux has-session -t "=$name" 2>/dev/null; then
+	tmux new-session -d -s "$name" -c "$dir" -n code
+	tmux send-keys -t "=$name:code.1" "nvim" Enter
+	tmux split-window -h -l 40% -t "=$name:code.1" -c "$dir"
+	tmux send-keys -t "=$name:code.2" "$AGENT" Enter
+	tmux select-pane -t "=$name:code.1"
+	tmux new-window -d -t "=$name:" -n shell -c "$dir"
+fi
+
+if [[ -n "${TMUX:-}" ]]; then
+	tmux switch-client -t "=$name"
+else
+	tmux attach-session -t "=$name"
+fi

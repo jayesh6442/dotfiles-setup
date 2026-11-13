@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Toggle focus between the editor pane and the AI-agent pane in the current
+# tmux window (bound to tmux prefix + a). If no agent pane exists, one is
+# opened on the right running ${DEV_AGENT:-claude}.
+set -uo pipefail
+
+agents='^(claude|codex|opencode|gemini|node)$'
+cur=$(tmux display-message -p '#{pane_id}')
+cur_cmd=$(tmux display-message -p '#{pane_current_command}')
+
+if [[ "$cur_cmd" =~ $agents ]]; then
+	# In the agent: go back to the last pane (normally nvim)
+	tmux select-pane -l 2>/dev/null || tmux select-pane -L
+	exit 0
+fi
+
+target=$(tmux list-panes -F '#{pane_id} #{pane_current_command}' |
+	awk -v re="$agents" -v cur="$cur" '$1 != cur && $2 ~ re { print $1; exit }')
+
+if [[ -n "$target" ]]; then
+	tmux select-pane -t "$target"
+else
+	tmux split-window -h -l 40% -c "#{pane_current_path}"
+	tmux send-keys "${DEV_AGENT:-claude}" Enter
+fi

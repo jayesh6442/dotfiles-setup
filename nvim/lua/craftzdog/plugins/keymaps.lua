@@ -1,0 +1,2 @@
+-- craftzdog plugin keymaps disabled: your previous NvChad keymaps live in
+-- lua/craftzdog/config/keymaps.lua. Original file kept at ~/.config/nvim/craftzdog-keymaps.lua.orig
